@@ -1,0 +1,8 @@
+check_drives.ps1
+copy_script.ps1
+initialize.ps1
+main.ps1
+RUN.cmd
+shutdown_control.ps1
+sounds/Done.wav
+sounds/Error.wav
