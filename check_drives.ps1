@@ -48,10 +48,10 @@ foreach ($drive in $drives) {
     $driveRoot = $drive.Root
     if (Test-Path $driveRoot) {
         # Log "Found $driveLetter drive."
-        if (Test-Path "${driveLetter}.copying") {
+        if (Test-Path ".\temp\${driveLetter}.copying") {
             Log "Found $driveLetter drive is copying."
         } else {
-            Log "Found $driveLetter drive is not copying yet. Open copy_script.ps1."
+            Log "Start copy to $driveLetter."
             Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$scriptPath`" -letter $driveLetter -sourceFolder `"$sourceFolder`"" -WindowStyle Hidden
         }
     }

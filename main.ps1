@@ -1,7 +1,22 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-$prototypePath = ".\prototype.txt"
+$prototypePath = ".\prototype"
+$tempDir = ".\temp"
+
+$mainRunning = ".\temp\main.running"
+if (-not (Test-Path ".\temp")) {
+    New-Item -ItemType Directory -Path $tempDir | Out-Null
+}
+
+if (Test-Path $mainRunning) {
+    $mainPID = Get-Content $mainRunning
+    [System.Windows.Forms.MessageBox]::Show("Already running. PID: $mainPID", "Warning", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+    exit
+} else {
+    $currentPID = $PID
+    Set-Content -Path "$tempDir/main.running" -Value $currentPID
+}
 
 function LoadConfig {
     if (Test-Path "config.txt") {
@@ -34,11 +49,15 @@ function LoadTheme {
     
 LoadConfig
 
+Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden", "-NoProfile", "-ExecutionPolicy RemoteSigned", "-File `"$PWD\view_drives.ps1`""
+
 # Create main form
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Drive Monitor & Tools"
 $form.Size = New-Object System.Drawing.Size(620, 510)
-$form.StartPosition = "CenterScreen"
+$form.StartPosition = "Manual"
+$form.Location = New-Object System.Drawing.Point(980, 0)
+
 
 # Left panel
 $leftPanel = New-Object System.Windows.Forms.Panel
@@ -54,20 +73,6 @@ $form.Controls.Add($rightPanel)
 
 # --- Left Column Buttons ---
 
-# Label: USB Drives
-$usbLabel = New-Object System.Windows.Forms.Label
-$usbLabel.Text = "USB Drives:"
-$usbLabel.Location = New-Object System.Drawing.Point(10, 10)
-$usbLabel.Size = New-Object System.Drawing.Size(180, 20)
-$leftPanel.Controls.Add($usbLabel)
-
-# ListBox: USB Drives
-$usbPanel = New-Object System.Windows.Forms.Panel
-$usbPanel.Location = New-Object System.Drawing.Point(10, 30)
-$usbPanel.Size = New-Object System.Drawing.Size(180, 150)
-$usbPanel.AutoScroll = $true
-$leftPanel.Controls.Add($usbPanel)
-
 # Button: Run CheckDrives.cmd
 $btnCheckDrive = New-Object System.Windows.Forms.Button
 $btnCheckDrive.Text = "CHECK DRIVE"
@@ -78,8 +83,6 @@ $btnCheckDrive.Add_Click({
     Start-Process powershell.exe -WindowStyle Hidden -ArgumentList "-NoProfile", "-ExecutionPolicy RemoteSigned", "-File `"$PWD\check_drives.ps1`""
 })
 $leftPanel.Controls.Add($btnCheckDrive)
-
-
 
 # Button: Run Initialize.cmd
 $btnInit = New-Object System.Windows.Forms.Button
@@ -92,10 +95,36 @@ $btnInit.Add_Click({
     Start-Sleep 1
     LoadConfig
     LoadTheme
+    
+    #restart view_drives
+    $runningFile = "./temp/view_drives.running"
+
+    if (Test-Path $runningFile) {
+        $pidToKill = Get-Content $runningFile
+        try {
+            Stop-Process -Id $pidToKill -Force
+            Write-Host "Process with PID $pidToKill has been terminated."
+        } catch {
+            Write-Host "Failed to terminate process with PID $pidToKill. Error: $_"
+        }
+
+        try {
+            Remove-Item $runningFile -Force
+            Write-Host "Clean-up complete: '$runningFile' deleted."
+        } catch {
+            Write-Host "Failed to delete '$runningFile'. Error: $_"
+        }
+    } else {
+        Write-Host "No running file found at '$runningFile'."
+    }
+
+    $runningFile = "./temp/view_drives.running"
+
+    Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden", "-NoProfile", "-ExecutionPolicy RemoteSigned", "-File `"$PWD\view_drives.ps1`""
 })
 $leftPanel.Controls.Add($btnInit)
 
-# --- Right Column: USB List + Log Viewer ---
+# --- Right Column: Log Viewer ---
 
 # Label: Log Viewer
 $logLabel = New-Object System.Windows.Forms.Label
@@ -130,54 +159,10 @@ $rightPanel.Controls.Add($btnClearLog)
 # Load theme after add all elements
 LoadTheme
 
-# --- Timer: Refresh USB + Log ---
-
-function Get-USBDriveLabels {
-    $labels = @()
-
-    Get-WmiObject Win32_LogicalDisk |
-    Where-Object { $_.DriveType -eq 2 } |
-    ForEach-Object {
-        $deviceID = $_.DeviceID.Replace(":", "")
-        $volumeName = $_.VolumeName
-        $copyingFile = "$deviceID.copying"
-
-        $label = New-Object System.Windows.Forms.Label
-        $label.Text = "$deviceID`: $volumeName"
-        $label.AutoSize = $true
-        $label.Margin = '3,3,3,3'
-
-        if (Test-Path $copyingFile) {
-            $label.Font = New-Object System.Drawing.Font("", 9, [System.Drawing.FontStyle]::Bold)
-            $label.BackColor = [System.Drawing.Color]::LightGray
-        }
-
-        $labels += $label
-    }
-
-    return $labels
-}
-
-
-$timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = 3000
-$timer.Add_Tick({
-    # Update USB list
-    $usbPanel.Controls.Clear()
-    $drives = Get-USBDriveLabels
-    if ($drives.Count -eq 0) {
-        $label = New-Object System.Windows.Forms.Label
-        $label.Text = "No USB drives detected."
-        $label.Location = New-Object System.Drawing.Point(10, $y)
-        $usbPanel.Controls.Add($label)
-    } else {
-        foreach ($lbl in $drives) {
-            $lbl.Location = New-Object System.Drawing.Point(10, $y)
-            $usbPanel.Controls.Add($lbl)
-            $y += $lbl.Height + 5
-        }
-    }
-
+# --- Timer: Refresh Log ---
+ $timer = New-Object System.Windows.Forms.Timer
+ $timer.Interval = 3000
+ $timer.Add_Tick({
     # Update log.txt
     if (Test-Path "log.txt") {
         try {
@@ -193,7 +178,10 @@ $timer.Add_Tick({
 })
 
 $timer.Start()
-$form.Add_FormClosing({ $timer.Stop() })
+$form.Add_FormClosing({ 
+    $timer.Stop()
+    Remove-Item $mainRunning -Force -ErrorAction SilentlyContinue
+})
 
 # Show the form
 $form.ShowDialog()

@@ -1,8 +1,6 @@
 ﻿Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-$logMonitorPIDFile = "log_monitor.pid"
-$logMonitorFlag = "log_monitor.opening"
 $logFile = "log.txt"
 $configFile= "config.txt"
 $prototypePath = "prototype"
@@ -13,9 +11,10 @@ $runIconPath = (Resolve-Path ".\ico\run.ico").Path
 $sourcePath = $null
 $autoShutDown = $false
 $autoFormat = $false
-$themeBg = "Black"
-$themeFg = "White"
-#$consoleColors = @("Black", "DarkBlue", "DarkGreen", "DarkCyan", "DarkRed", "DarkMagenta", "DarkYellow", "Gray", "DarkGray", "Blue", "Green", "Cyan", "Red", "Magenta", "Yellow", "White")
+$themeBg = "DarkSlateGray"
+$themeFg = "Snow"
+$checkedBg = "White"
+$checkedFg = "Black"
 $consoleColors = [System.Enum]::GetNames([System.Drawing.KnownColor])
 
 # Get config Variables
@@ -34,6 +33,10 @@ function GetConfig{
                 $script:themeBg = ($line -split "=")[1].Trim()
             } elseif ($line -match "^themeFg\s*=") {
                 $script:themeFg = ($line -split "=")[1].Trim()
+            } elseif ($line -match "^checkedBg\s*=") {
+                $script:checkedBg = ($line -split "=")[1].Trim()
+            } elseif ($line -match "^checkedFg\s*=") {
+                $script:checkedFg = ($line -split "=")[1].Trim()
             }
         }
     } else {
@@ -41,11 +44,14 @@ function GetConfig{
     }
 }
 
+GetConfig
+
 # Create main form
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Initialization Settings"
-$form.Size = New-Object System.Drawing.Size(500, 330)
-$form.StartPosition = "CenterScreen"
+$form.Size = New-Object System.Drawing.Size(410, 410)
+$form.StartPosition = "Manual"
+$form.Location = New-Object System.Drawing.Point(570, 0)
 $form.BackColor = $themeBg
 $form.ForeColor = $themeFg
 
@@ -54,7 +60,7 @@ function New-Label($text, $x, $y) {
     $label = New-Object System.Windows.Forms.Label
     $label.Text = $text
     $label.Location = New-Object System.Drawing.Point($x, $y)
-    $label.Size = New-Object System.Drawing.Size(200, 20)
+    $label.Size = New-Object System.Drawing.Size(110, 20)
     return $label
 }
 
@@ -82,7 +88,7 @@ function New-Submit-Button($text, $x, $y, $clickHandler) {
     $btn = New-Object System.Windows.Forms.Button
     $btn.Text = $text
     $btn.Location = New-Object System.Drawing.Point($x, $y)
-    $btn.Size = New-Object System.Drawing.Size(440, 30)
+    $btn.Size = New-Object System.Drawing.Size(350, 40)
     $btn.Add_Click($clickHandler)
     return $btn
 }
@@ -98,10 +104,7 @@ $form.Controls.Add((New-Button "Select Source Folder" 20 20 {
         $script:sourcePath = $dialog.SelectedPath  # Use script scope to persist
         $sourcePathName = Split-Path $sourcePath -Leaf
         $selectedLabel.Text = "Selected : $sourcePathName"
-        [System.Windows.Forms.MessageBox]::Show( "Selected path: $sourcePath" )
-    } else {
-        [System.Windows.Forms.MessageBox]::Show("No folder selected.")
-    }
+    } 
 }))
 
 # Label: selected folder
@@ -126,14 +129,34 @@ $chkShutdown = New-Checkbox "Shutdown When Done" 20 110
 $chkShutdown.Checked = $autoShutDown
 $form.Controls.Add($chkShutdown)
 
+# Sound Settings
+$form.Controls.Add((New-Button "Select Error Sound" 20 150 {
+    $dialog = New-Object System.Windows.Forms.OpenFileDialog
+    $dialog.Filter = "WAV files (*.wav)|*.wav"
+    if ($dialog.ShowDialog() -eq "OK") {
+        Copy-Item $dialog.FileName -Destination "./sounds/Error.wav" -Force
+        [System.Windows.Forms.MessageBox]::Show("Error.wav saved.")
+    }
+}))
+
+$form.Controls.Add((New-Button "Select Done Sound" 20 190 {
+    $dialog = New-Object System.Windows.Forms.OpenFileDialog
+    $dialog.Filter = "WAV files (*.wav)|*.wav"
+    if ($dialog.ShowDialog() -eq "OK") {
+        Copy-Item $dialog.FileName -Destination "./sounds/Done.wav" -Force
+        [System.Windows.Forms.MessageBox]::Show("Done.wav saved.")
+    }
+}))
+
+
 # Clear Temp Button
-$form.Controls.Add((New-Button "Clear Temp Files" 20 160 {
-    Remove-Item "*.copying","*.slotcopying" -Force -ErrorAction SilentlyContinue
+$form.Controls.Add((New-Button "Clear Temp Files" 20 230 {
+    Remove-Item ".\temp\*.copying","*.slotcopying" -Force -ErrorAction SilentlyContinue
     [System.Windows.Forms.MessageBox]::Show("Temp files removed.")
 }))
 
 # Add shortcut Button
-$form.Controls.Add((New-Button "Add shortcut to Desktop" 20 200 {
+$form.Controls.Add((New-Button "Add shortcut to Desktop" 20 270 {
     $desktopPath = [System.Environment]::GetFolderPath("Desktop")
     $wshShell = New-Object -ComObject WScript.Shell
 
@@ -183,25 +206,46 @@ $txCombo1.Add_SelectedIndexChanged({
 })
 $form.Controls.Add($txCombo1)
 
-# Sound Settings
-$form.Controls.Add((New-Button "Select Error Sound" 260 160 {
-    $dialog = New-Object System.Windows.Forms.OpenFileDialog
-    $dialog.Filter = "WAV files (*.wav)|*.wav"
-    if ($dialog.ShowDialog() -eq "OK") {
-        Copy-Item $dialog.FileName -Destination "./sounds/Error.wav" -Force
-        [System.Windows.Forms.MessageBox]::Show("Error.wav saved.")
-    }
-}))
+# Display Settings
+$checkedLabel = New-Object System.Windows.Forms.Label
+$checkedLabel.Text = "CHECKED COLOR"
+$checkedLabel.Location = New-Object System.Drawing.Point(260, 150)
+$checkedLabel.Size = New-Object System.Drawing.Size(110, 20)
+$checkedLabel.BackColor = $checkedBg
+$checkedLabel.ForeColor = $checkedFg
 
-$form.Controls.Add((New-Button "Select Done Sound" 260 200 {
-    $dialog = New-Object System.Windows.Forms.OpenFileDialog
-    $dialog.Filter = "WAV files (*.wav)|*.wav"
-    if ($dialog.ShowDialog() -eq "OK") {
-        Copy-Item $dialog.FileName -Destination "./sounds/Done.wav" -Force
-        [System.Windows.Forms.MessageBox]::Show("Done.wav saved.")
+$form.Controls.Add($checkedLabel)
+$form.Controls.Add((New-Label "Background color:" 260 170))
+$bgCombo2 = New-Object System.Windows.Forms.ComboBox
+$bgCombo2.Location = New-Object System.Drawing.Point(260, 190)
+$bgCombo2.Size = New-Object System.Drawing.Size(110, 20)
+$bgCombo2.DropDownStyle = 'DropDownList'
+$bgCombo2.Items.AddRange($consoleColors)
+$bgCombo2.SelectedItem = $checkedBg
+# Background color change
+$bgCombo2.Add_SelectedIndexChanged({
+    $selectedBg = $bgCombo2.SelectedItem
+    if ($selectedBg) {
+        $checkedLabel.BackColor = [System.Drawing.Color]::FromName($selectedBg)
     }
-}))
+})
+$form.Controls.Add($bgCombo2)
 
+$form.Controls.Add((New-Label "Foreground color:" 260 220))
+$txCombo2 = New-Object System.Windows.Forms.ComboBox
+$txCombo2.Location = New-Object System.Drawing.Point(260, 240)
+$txCombo2.Size = New-Object System.Drawing.Size(110, 20)
+$txCombo2.DropDownStyle = 'DropDownList'
+$txCombo2.Items.AddRange($consoleColors)
+$txCombo2.SelectedItem = $themeFg
+# Foreground color change
+$txCombo2.Add_SelectedIndexChanged({
+    $selectedFg = $txCombo2.SelectedItem
+    if ($selectedFg) {
+        $checkedLabel.ForeColor = [System.Drawing.Color]::FromName($selectedFg)
+    }
+})
+$form.Controls.Add($txCombo2)
 
 # Check the completeness of the script file
 Write-Host "1. Check the completeness of the script file."
@@ -226,46 +270,14 @@ if (-not (Test-Path "./sounds")) {
     New-Item -ItemType Directory -Path "./sounds" | Out-Null
 }
 
-
-
-
-if ($newInit -or ($sourcePath -eq $null ) -or ($sourcePath -eq "")) {
-    $dialogResult = [System.Windows.Forms.MessageBox]::Show(
-        "Source Folder is required, got empty string.`nYou must select a new directory to copy.",
-        "Confirmation",
-        [System.Windows.Forms.MessageBoxButtons]::YesNo,
-        [System.Windows.Forms.MessageBoxIcon]::Question
-    )
-    if ($dialogResult -eq [System.Windows.Forms.DialogResult]::Yes) {
-        do {
-            $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-            $dialog.Description = "Select the source folder"
-            $dialog.ShowNewFolderButton = $true
-
-            if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-                #[System.Windows.Forms.MessageBox]::Show( "Selected path: $sourcePath" )
-                $sourcePath = $dialog.SelectedPath
-                $sourcePathName = Split-Path $sourcePath -Leaf
-                $selectedLabel.Text = "Selected : $sourcePathName"
-                $newInit=$false
-            } else {
-                [System.Windows.Forms.MessageBox]::Show("No folder selected.")
-            }
-        } while ($newInit)    
-    } else {
-        exit
-    }
-}
-
-
-[System.Windows.Forms.MessageBox]::Show("$sourcePath")
-
 # Save Config Button
-$form.Controls.Add((New-Submit-Button "Save Configuration" 20 240 {
+$form.Controls.Add((New-Submit-Button "Save Configuration" 20 310 {
     $autoFormat = $chkFormat.Checked
     $autoShutDown = $chkShutdown.Checked
     $themeBg = $bgCombo1.SelectedItem
     $themeFg = $txCombo1.SelectedItem
+    $checkedBg = $bgCombo2.SelectedItem
+    $checkedFg = $txCombo2.SelectedItem
     
     $configContent = @"
 sourceFolder=$sourcePath
@@ -273,6 +285,8 @@ autoFormat=$autoFormat
 autoShutDown=$autoShutDown
 themeBg=$themeBg
 themeFg=$themeFg
+checkedBg = $checkedBg
+checkedFg = $checkedFg
 "@
     [System.Windows.Forms.MessageBox]::show("$configContent")
     Remove-Item $configFile -Force -ErrorAction SilentlyContinue

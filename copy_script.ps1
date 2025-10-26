@@ -7,8 +7,28 @@ Add-Type -AssemblyName System.Windows.Forms
 
 $configFile = "config.txt"
 $logFile = "log.txt"
+$tempDir = ".\temp"
 $soundError = ".\sounds\Error.wav"
 $soundDone = ".\sounds\Done.wav"
+
+if (-not (Test-Path $tempDir)) {
+    New-Item -ItemType Directory -Path $tempDir | Out-Null
+}
+
+function Config ($variable) {
+    if (Test-Path $configFile) {
+        Get-Content -Path $configFile | ForEach-Object {
+            if ($_ -match '=') {
+                $parts = $_ -split '='
+                $name = $parts[0].Trim()
+                $value = $parts[1].Trim()
+                if ($name -eq $variable) { return $value }
+            }
+        }
+        return $null
+    }
+    return $null
+}
 
 # Load config.txt variables
 if (Test-Path $configFile) {
@@ -29,15 +49,15 @@ $destinationPath = "${letter}:\"
 # Validate drive letter
 #Write-Host "Driveletter: $letter"
 if (-not $letter -or $letter.Length -ne 1) {
-	Write-Host "O dia khong hop le, hoac thieu Tham so" 
-	"$(Get-Date) : O dia khong hop le, hoac thieu Tham so"  | Add-Content -Path $logFile
+	Write-Host "Invalid drive." 
+	"$(Get-Date) : Invalid drive."  | Add-Content -Path $logFile
 	exit 
 }
 
 # Validate source
 #Write-Host "Source: $sourceFolder"
 if (-not (Test-Path $sourceFolder)) { 
-    Write-Host "$sourceFolder khong ton tai!" 
+    Write-Host "Missing SourceFolder ($sourceFolder)" 
     $player_err.PlaySync()
 }
 
@@ -49,10 +69,12 @@ if (-not (Test-Path $destinationPath)) {
 }
 try {
     #Write-Host "Creating new $letter.copying"
-    New-Item -Path "$letter.copying" -ItemType File -Force
+    $currentPID = $PID
+    Set-Content -Path "$tempDir/$letter.copying" -Value $currentPID
+    New-Item -Path "$tempDir/$letter.copying" -ItemType File -Force
 	
     Remove-Item -Path (Get-ChildItem -Filter "*.slotcopying").FullName -Force
-    $copying = (Get-ChildItem -Filter "*.copying").Count
+    $copying = (Get-ChildItem -Filter ".\temp\*.copying").Count
     New-Item -Path "$copying.slotcopying" -ItemType File -Force
 
     # Try formatting USB if autoFormat=true
@@ -108,19 +130,19 @@ try {
 	    "$(Get-Date) : [ $letter ]`: [ $diff ]"  | Add-Content -Path $logFile
     }
 } catch {
+    $player_err.PlaySync() 
     [System.Windows.Forms.MessageBox]::Show("Error copying to $letter drive.")
-	$player_err.PlaySync() 
 } finally {
-    Remove-Item -Path "$letter.copying" -Force
+    Remove-Item -Path "$tempDir/$letter.copying" -Force
 	
     Remove-Item -Path (Get-ChildItem -Filter "*.slotcopying").FullName -Force
-    $copying = (Get-ChildItem -Filter "*.copying").Count
+    $copying = (Get-ChildItem -Filter "$tempDir/*.copying").Count
     New-Item -Path "$copying.slotcopying" -ItemType File -Force
     "$(Get-Date) : $copying copying remain."  | Add-Content -Path $logFile
-}
 
-# Check if all copy operations are done
-if ($copying -eq 0 -and $autoShutDown -eq $true) {
-    # Open shutdown_control.ps1:
-    Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File shutdown_control.ps1" -WindowStyle Normal
+    # Check if all copy operations are done
+    if ($copying -eq 0 -and (Config("autoShutDown")-eq $true)) {
+        # Open shutdown_control.ps1:
+        Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File shutdown_control.ps1" -WindowStyle Normal
+    }
 }

@@ -4,5 +4,6 @@ initialize.ps1
 main.ps1
 RUN.cmd
 shutdown_control.ps1
+view_drives.ps1
 sounds/Done.wav
 sounds/Error.wav
