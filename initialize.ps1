@@ -48,7 +48,7 @@ function GetConfig {
             }
         }
     } else {
-        [System.Windows.Forms.MessageBox]::Show("Config not found.", "Warning", "OK", "Warning")
+        # [System.Windows.Forms.MessageBox]::Show("Config not found.", "Warning", "OK", "Warning")
     }
 }
 

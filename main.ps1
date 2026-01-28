@@ -30,7 +30,7 @@ function LoadConfig {
             }
         }
     } else {
-        [System.Windows.Forms.MessageBox]::Show("config.txt not found.")
+        [System.Windows.Forms.MessageBox]::Show("config.txt not found. Please open SETTING")
     }
 }
 
