@@ -74,7 +74,7 @@ function Get-USBDriveLabels {
         $label = New-Object System.Windows.Forms.Label
         $label.Text = "$driveLetter : $volumeName : $percent%"
 
-        $label.Size = New-Object System.Drawing.Size(160, 20)
+        $label.Size = New-Object System.Drawing.Size(200, 20)
         $label.Margin = '3,3,3,3'
 
         if (Test-Path $copyingFile) {
@@ -97,12 +97,12 @@ function RefreshUSBPanel {
     if ($drives.Count -eq 0) {
         $label = New-Object System.Windows.Forms.Label
         $label.Text = "No USB drives detected."
-        $label.Location = New-Object System.Drawing.Point(10, $y)
-        $label.Size = New-Object System.Drawing.Size(160, 20)
+        $label.Location = New-Object System.Drawing.Point(0, $y)
+        $label.Size = New-Object System.Drawing.Size(200, 20)
         $usbPanel.Controls.Add($label)
     } else {
         foreach ($lbl in $drives) {
-            $lbl.Location = New-Object System.Drawing.Point(10, $y)
+            $lbl.Location = New-Object System.Drawing.Point(0, $y)
             $usbPanel.Controls.Add($lbl)
             $y += $lbl.Height + 5
         }
@@ -112,12 +112,15 @@ function RefreshUSBPanel {
 # Load config
 LoadConfig
 
+$monitorWidth = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width
 # Create form
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Drive Monitor & Tools"
+$form.Text = "Drives"
 $form.Size = New-Object System.Drawing.Size(240, 510)
 $form.StartPosition = "Manual"
-$form.Location = New-Object System.Drawing.Point(1600, 0)
+$form.FormBorderStyle = 'FixedDialog'
+$x = $monitorWidth - $form.Width - 10
+$form.Location = New-Object System.Drawing.Point($x, 10)
 
 # Left panel
 $leftPanel = New-Object System.Windows.Forms.Panel
@@ -125,25 +128,18 @@ $leftPanel.Size = New-Object System.Drawing.Size(200, 460)
 $leftPanel.Location = New-Object System.Drawing.Point(10, 10)
 $form.Controls.Add($leftPanel)
 
-# Label
-$usbLabel = New-Object System.Windows.Forms.Label
-$usbLabel.Text = "USB Drives:"
-$usbLabel.Location = New-Object System.Drawing.Point(10, 10)
-$usbLabel.Size = New-Object System.Drawing.Size(180, 20)
-$leftPanel.Controls.Add($usbLabel)
-
 # USB panel
 $usbPanel = New-Object System.Windows.Forms.Panel
-$usbPanel.Location = New-Object System.Drawing.Point(10, 35)
-$usbPanel.Size = New-Object System.Drawing.Size(180, 360)
+$usbPanel.Location = New-Object System.Drawing.Point(0, 0)
+$usbPanel.Size = New-Object System.Drawing.Size(200, 380)
 $usbPanel.AutoScroll = $true
 $leftPanel.Controls.Add($usbPanel)
 
 # Refresh button
 $refreshBtn = New-Object System.Windows.Forms.Button
-$refreshBtn.Text = "Refresh"
-$refreshBtn.Size = New-Object System.Drawing.Size(180, 30)
-$refreshBtn.Location = New-Object System.Drawing.Point(10, 400)
+$refreshBtn.Text = "REFRESH"
+$refreshBtn.Size = New-Object System.Drawing.Size(200, 40)
+$refreshBtn.Location = New-Object System.Drawing.Point(0, 410)
 $refreshBtn.Add_Click({ RefreshUSBPanel })
 $leftPanel.Controls.Add($refreshBtn)
 
