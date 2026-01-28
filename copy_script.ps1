@@ -17,11 +17,18 @@ if (-not (Test-Path $tempDir)) {
 
 function Config($variable) {
     if (-not (Test-Path $configFile)) { return $null }
-    $text = Get-Content -Path $configFile | Where-Object { $_ -match '=' }
-    $hash = ConvertFrom-StringData ($text -join "`n")
-    if ($hash.ContainsKey($variable)) { return $hash[$variable] }
+
+    foreach ($line in Get-Content -Path $configFile) {
+        if ($line -match '=') {
+            $parts = $line -split '=', 2
+            $name  = $parts[0].Trim()
+            $value = $parts[1].Trim()
+            if ($name -eq $variable) { return $value }
+        }
+    }
     return $null
 }
+
 
 
 # Load config.txt variables
