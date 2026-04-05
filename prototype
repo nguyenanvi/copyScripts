@@ -1,9 +1,7 @@
 check_drives.ps1
 copy_script.ps1
-initialize.ps1
+load_drives_info.ps1
 main.ps1
 RUN.cmd
+settings.ps1
 shutdown_control.ps1
-view_drives.ps1
-sounds/Done.wav
-sounds/Error.wav

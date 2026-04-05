@@ -2,7 +2,7 @@
 setlocal
 
 set "file=%CD%\main.ps1"
-powershell.exe -WindowStyle Hidden -NoProfile -Command "Set-ExecutionPolicy RemoteSigned -Scope Process; & '%file%'"
-powershell.exe -File "%file%"
+powershell.exe -NoProfile -Command ^
+  "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \"%file%\"' -WindowStyle Hidden"
 
 exit

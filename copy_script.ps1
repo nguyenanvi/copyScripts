@@ -5,14 +5,24 @@ param(
 
 Add-Type -AssemblyName System.Windows.Forms
 
-$configFile = "config.txt"
+$configFile = "current.config"
 $logFile = "log.txt"
 $tempDir = ".\temp"
-$soundError = ".\sounds\Error.wav"
-$soundDone = ".\sounds\Done.wav"
+$copyingFile = Join-Path $tempDir "$letter.copying"
+$infoFile = Join-Path $tempDir "$letter.info"
+$completedFile = Join-Path $tempDir "$letter.completed"
+$soundError = Join-Path $env:windir "Media\Windows Hardware Fail.wav"
+$soundDone  = Join-Path $env:windir "Media\Windows Print complete.wav"
 
 if (-not (Test-Path $tempDir)) {
     New-Item -ItemType Directory -Path $tempDir | Out-Null
+}
+
+# Function to log to GUI and file
+function Log($text) {
+    $timestamp = $(Get-Date)
+    $line = "$timestamp : $text"
+    Add-Content -Path "log.txt" -Value $line
 }
 
 function Config($variable) {
@@ -29,9 +39,7 @@ function Config($variable) {
     return $null
 }
 
-
-
-# Load config.txt variables
+# Load current.config variables
 if (Test-Path $configFile) {
     Get-Content -Path $configFile | ForEach-Object {
         if ($_ -match '=') {
@@ -43,62 +51,68 @@ if (Test-Path $configFile) {
     }
 }
 
-$player_err = New-Object System.Media.SoundPlayer $soundError 
-$player_done = New-Object System.Media.SoundPlayer $soundDone 
+$player_err  = New-Object System.Media.SoundPlayer $soundError
+$player_done = New-Object System.Media.SoundPlayer $soundDone
 $destinationPath = "${letter}:\" 
 
 # Validate drive letter
 if (-not $letter -or $letter.Length -ne 1) {
-	Write-Host "Invalid drive." 
+	Log "$letter`: Invalid drive." 
 	"$(Get-Date) : Invalid drive."  | Add-Content -Path $logFile
 	exit 
 }
 
+if (-not (Test-Path "$letter`:\")){
+    Log "$letter`: disconnected"
+    exit
+}
+
 # Validate source
 if (-not (Test-Path $sourceFolder)) { 
-    Write-Host "Missing SourceFolder ($sourceFolder)" 
+    Log "$letter - SourceFolder ($sourceFolder) is invalid" 
     $player_err.PlaySync()
 }
 
-# Validate $destination 
-if (-not (Test-Path $destinationPath)) { 
-    Write-Host "O dia $letter khong ton tai!" 
-    $player_err.PlaySync() 
-}
 try {
-    $copyingFile = Join-Path $tempDir "$letter.copying"
     $currentPID = $PID
     Set-Content -Path $copyingFile -Value $PID -ErrorAction Stop
+    Remove-Item -Path $completedFile -Force
+    
     if (-not (Test-Path $copyingFile)) { 
         New-Item -Path $copyingFile -ItemType File -Force | Out-Null 
     }
-	$slot = Get-ChildItem -Path $tempDir -Filter "*.slotcopying" -ErrorAction SilentlyContinue | Select-Object -First 1 
-    if ($slot) { 
-        Remove-Item -Path $slot.FullName -Force -ErrorAction SilentlyContinue 
+    function Get-FolderSize($path) {
+        if (-not (Test-Path $path)) { return 0 }
+        return (Get-ChildItem -Path $path -Recurse -ErrorAction SilentlyContinue | 
+                Measure-Object -Property Length -Sum).Sum
     }
-    $copyingFiles = Get-ChildItem -Path $tempDir -Filter "*.copying" -ErrorAction SilentlyContinue
-    $copying = if ($copyingFiles) { $copyingFiles.Count } else { 0 }
+    $driveInfo = Get-PSDrive -Name $letter -ErrorAction SilentlyContinue
+    if ($null -eq $driveInfo) {
+        $player_err.PlaySync()
+    }
+    $sourceSize = Get-FolderSize $sourceFolder
+    $freeSpace  = $driveInfo.Free
+    $totalSpace = $driveInfo.Used + $driveInfo.Free
 
-    $slotPath = Join-Path $tempDir "$copying.slotcopying" 
-    New-Item -Path $slotPath -ItemType File -Force | Out-Null
+    $info = @"
+scriptSourceFolder=$sourceFolder
+scriptSourceSize=$sourceSize
+scriptTotalSpace=$totalSpace
+"@
+    Set-Content -Path $copyingFile -Value $currentPID
+    Set-Content -Path $infoFile -Value $info
 
     # Try formatting USB if autoFormat=true
     if ($autoFormat -eq $true) {
-        
-	    $sourceFolderName = Split-Path -Path $sourceFolder -Leaf
-	    try { 
-		    Format-Volume -DriveLetter $letter -FileSystem FAT32 -NewFileSystemLabel $sourceFolderName -AllocationUnitSize 16384 -Confirm:$false 
-	    } catch { 
-		    Write-Host "$letter drive is not available." 
-		    $player_err.PlaySync()
-
-		    Remove-Item -Path "$letter.copying" -Force
-
-            Remove-Item -Path (Get-ChildItem -Filter "*.slotcopying").FullName -Force
-            $copying = (Get-ChildItem -Filter "*.copying").Count
-            New-Item -Path "$copying.slotcopying" -ItemType File -Force
-		    exit 
-	    }
+        $sourceFolderName = Split-Path -Path $sourceFolder -Leaf
+        try { 
+            Format-Volume -DriveLetter $letter -FileSystem FAT32 -NewFileSystemLabel $sourceFolderName -AllocationUnitSize 16384 -Confirm:$false 
+        } catch { 
+            Log "$letter drive is not available to format." 
+            $player_err.PlaySync()
+            Remove-Item -Path "$letter.copying" -Force
+            exit 
+        }
     }
 
     # Copying $sourceFolder to $letter 
@@ -123,31 +137,16 @@ try {
     if($diff -ne 0){
         $player_err.PlaySync()
     } else {
+        Set-Content -Path $completedFile -Value $(Get-Date)
         $player_done.PlaySync() 
     }
-    "$(Get-Date) : $letter`: done [ $diff ]"  | Add-Content -Path $logFile
+    "$(Get-Date) : $letter`: copy done - $diff"  | Add-Content -Path $logFile
 } catch {
     $errMsg = $_.Exception.Message 
     $errStack = $_.Exception.StackTrace 
 
     $player_err.PlaySync() 
-    [System.Windows.Forms.MessageBox]::Show("Error copying to $letter drive.`n$errMsg")
+    [System.Windows.Forms.MessageBox]::Show("$letter`: Error copying:`n$errMsg")
 } finally {
-    $copyingFile = Join-Path $tempDir "$letter.copying"
     Remove-Item -Path $copyingFile -Force -ErrorAction SilentlyContinue
-
-    $slot = Get-ChildItem -Path $tempDir -Filter "*.slotcopying" -ErrorAction SilentlyContinue | Select-Object -First 1
-	if ($slot) { Remove-Item -Path $slot.FullName -Force -ErrorAction SilentlyContinue }
-
-    $copyingFiles = Get-ChildItem -Path $tempDir -Filter "*.copying" -ErrorAction SilentlyContinue 
-    $copying = if ($copyingFiles) { $copyingFiles.Count } else { 0 }
-    New-Item -Path (Join-Path $tempDir "$copying.slotcopying") -ItemType File -Force | Out-Null
-
-    "$(Get-Date) : $copying copying remain."  | Add-Content -Path $logFile
-
-    # Check if all copy operations are done
-    if ($copying -eq 0 -and [bool](Config "autoShutDown")) {
-        # Open shutdown_control.ps1:
-        Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File shutdown_control.ps1" -WindowStyle Normal
-    }
 }

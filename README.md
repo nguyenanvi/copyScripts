@@ -1,12 +1,10 @@
-# 🚀 COPITOR - USB Copy Helper
+# COPITOR
 
-**Compatible with Windows 10 / 11**  
-
----
+"USB Copy Helper"
 
 ## ✨👀 First glance
 
-![Gameplay](Screenshot2026-01-28135811.png "img Preview for COPITOR")
+![Gameplay](scrsht.png "img Preview for COPITOR")
 
 ---
 
@@ -15,33 +13,40 @@
 Run the following command in **PowerShell**, **Terminal**, or **CMD**:
 
 ```powershell
-irm https://nguyenanvi.github.io/copyScripts/bootstrap.ps1 | iex
+irm https://nguyenanvi.github.io/copyScripts/install.ps1 | iex
 ```
 
 ---
 
 ## 📋 Usage Guide
 
-### ⚙️ Settings
+### Settings things up:
 
-Main View > SETTING > Set the Source Folder for a Folder you want to Copy
+**Main View** > ```SETTINGs``` > Set the ```Source Folder``` for a Folder you want to Copy
 
-Updated: Now user can choose any USB Drive to Copy or not by Checkboxes list
+_Updated: Now you can choose any USB Drive you want to copy by **checkboxes list**_
 
-Note: if you turn on Auto Format, remember save all important data in USB before checking.
+_Note: if you turn on **Auto Format**, remember save all important data in USB before checking._
 
 ### 📁 Copying Drives
 
-Main view > CHECK DRIVES > It will automatically copy all Drives plugged in your Computer (except C:\)
+In the Main view just press ```START```, it will automatically copy your selected Folder to all drives you selected Computer (except C:\)
 
 ---
 
-## ✅ Why Try COPITOR?
+### Troubleshoot
 
-- 💡 Simple and intuitive GUI
+Some of computer can not run from the begin, please run this command in terminal (Run as Administrator): 
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned
+```
 
-- 🔄 Automatic drive detection
+## Why COPITOR?
 
-- 🆓 Totally free to use
+- Simple and intuitive GUI
 
-- 🧘 No tricks, no trolling
+- Compatible with Windows 10 / 11
+
+- Automatic drive detection
+
+- Totally free to use
