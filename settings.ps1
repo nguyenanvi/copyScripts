@@ -6,7 +6,6 @@ $configFile = "current.config"
 $prototypePath = "prototype"
 $langDir = "./lang"
 $langFiles = Get-ChildItem -Path $langDir -Filter * | Select-Object -ExpandProperty Name
-$newInit = $false
 $runIconPath = (Resolve-Path ".\ico\run.ico").Path
 $shutdownTrigger = Join-Path $tempDir "autoshutdown.enabled"
 
@@ -14,12 +13,12 @@ $shutdownTrigger = Join-Path $tempDir "autoshutdown.enabled"
 $sourcePath = $null
 $autoShutDown = $false
 $autoFormat = $false
-$themeBg = "DarkSlateBlue"
-$themeFg = "WhiteSmoke"
-$checkedBg = "Yellow"
-$checkedFg = "Maroon"
-$doneBg = "DarkGreen"
-$doneFg = "Chartreuse"
+$themeBg = "Desktop"
+$themeFg = "White"
+$checkedBg = "Blue"
+$checkedFg = "White"
+$doneBg = "Green"
+$doneFg = "White"
 $lang = "en-US"
 $consoleColors = [System.Enum]::GetNames([System.Drawing.KnownColor])
 
@@ -34,6 +33,8 @@ function GetConfig {
                 $script:autoShutDown = ($line -split "=")[1].Trim().ToLower() -eq "true"
             } elseif ($line -match "^autoFormat\s*=") {
                 $script:autoFormat = ($line -split "=")[1].Trim().ToLower() -eq "true"
+            } elseif ($line -match "^autoCopyWhenPluggedIn\s*=") {
+                $script:autoCopyWhenPluggedIn = ($line -split "=")[1].Trim().ToLower() -eq "true"
             } elseif ($line -match "^themeBg\s*=") {
                 $script:themeBg = ($line -split "=")[1].Trim()
             } elseif ($line -match "^themeFg\s*=") {
@@ -155,6 +156,8 @@ function New-Header($text, $x, $y) {
 
     return $container
 }
+
+
 function New-Label($text, $x, $y, $width, $height) {
     $label = New-Object System.Windows.Forms.Label
     $label.Text = $translations[$text]
@@ -206,6 +209,7 @@ function RefreshLocalization {
     }
     $lblChkBoxes.Text = $translations["copy_options"]
     $chkFormat.Text = $translations["auto_format_usb"]
+    $chkCopyWhenPluggedIn.Text = $translations["auto_copy_when_plugged_in"]
     $chkShutdown.Text = $translations["shutdown_when_done"]
 
     # $appearanceHeader.Text = $translations["2_appearance"]
@@ -240,6 +244,7 @@ function RefreshLocalization {
 function Save-Configuration {
     $computerId = (Get-WmiObject Win32_ComputerSystemProduct).UUID
     $autoFormat = $chkFormat.Checked
+    $autoCopyWhenPluggedIn = $chkCopyWhenPluggedIn.Checked
     $autoShutDown = $chkShutdown.Checked
 
     if ($autoShutDown -eq $true) {
@@ -283,6 +288,7 @@ computerId=$computerId
 sourceFolder=$sourcePath
 autoFormat=$autoFormat
 autoShutDown=$autoShutDown
+autoCopyWhenPluggedIn=$autoCopyWhenPluggedIn
 themeBg=$themeBg
 themeFg=$themeFg
 checkedBg=$checkedBg
@@ -436,7 +442,14 @@ $panel.Controls.Add($lblChkBoxes)
 # Auto Format Checkbox
 $chkFormat = New-Checkbox "auto_format_usb" 20 250 160 40
 $chkFormat.Checked = $autoFormat
+$chkCopyWhenPluggedIn.Checked = $autoCopyWhenPluggedIn
 $panel.Controls.Add($chkFormat)
+
+# Auto Copy When Plugged In
+$chkCopyWhenPluggedIn = New-Checkbox "auto_copy_when_plugged_in" 20 290 160 40
+$chkCopyWhenPluggedIn.Checked = $autoFormat
+$chkCopyWhenPluggedIn.Checked = $autoCopyWhenPluggedIn
+$panel.Controls.Add($chkCopyWhenPluggedIn)
 
 # Auto Shutdown Checkbox
 $chkShutdown = New-Checkbox "shutdown_when_done" 185 250 170 40
@@ -444,12 +457,12 @@ $chkShutdown.Checked = $autoShutDown
 $panel.Controls.Add($chkShutdown)
 
 ##################
-$appearanceHeader = New-Header "2_appearance" 0 290
+$appearanceHeader = New-Header "2_appearance" 0 330
 $panel.Controls.Add($appearanceHeader)
 
 ##################
 $lblThemePanel = New-Object System.Windows.Forms.Panel
-$lblThemePanel.Location = New-Object System.Drawing.Point(0, 320)
+$lblThemePanel.Location = New-Object System.Drawing.Point(0, 360)
 $lblThemePanel.Size = New-Object System.Drawing.Size(383, 85)
 $lblThemePanel.BackColor = $themeBg
 $lblThemePanel.ForeColor = $themeFg
@@ -493,7 +506,7 @@ $lblThemePanel.Controls.Add($fgCombo1)
 
 #####################
 $lblCheckedPanel = New-Object System.Windows.Forms.Panel
-$lblCheckedPanel.Location = New-Object System.Drawing.Point(0, 405)
+$lblCheckedPanel.Location = New-Object System.Drawing.Point(0, 445)
 $lblCheckedPanel.Size = New-Object System.Drawing.Size(383, 85)
 $lblCheckedPanel.BackColor = $checkedBg
 $lblCheckedPanel.ForeColor = $checkedFg
@@ -536,7 +549,7 @@ $lblCheckedPanel.Controls.Add($fgCombo2)
 
 #####################
 $lblDonePanel = New-Object System.Windows.Forms.Panel
-$lblDonePanel.Location = New-Object System.Drawing.Point(0, 490)
+$lblDonePanel.Location = New-Object System.Drawing.Point(0, 530)
 $lblDonePanel.Size = New-Object System.Drawing.Size(383, 85)
 $lblDonePanel.BackColor = $doneBg
 $lblDonePanel.ForeColor = $doneFg
@@ -579,24 +592,24 @@ $lblDonePanel.Controls.Add($fgCombo3)
 
 #####################
 
-$buggyHeader = New-Header "3_buggy_settings" 0 590
+$buggyHeader = New-Header "3_buggy_settings" 0 630
 $panel.Controls.Add($buggyHeader)
 
-$lblClearTemp = New-Label "clear_temp_files_1" 0 630 243 20
+$lblClearTemp = New-Label "clear_temp_files_1" 0 670 243 20
 $panel.Controls.Add($lblClearTemp)
 
 # CLEAR TEMP BTN
-$btnClearTemp = New-Button "clear_temp_files_2"  270 630 100 20 {
+$btnClearTemp = New-Button "clear_temp_files_2"  270 670 100 20 {
     Remove-Item ".\temp\*.copying",".\temp\*.slotcopying",".\temp\*.info" -Force -ErrorAction SilentlyContinue
     [System.Windows.Forms.MessageBox]::Show($translations["msg_temp_files_removed"])
 }
 $panel.Controls.Add($btnClearTemp)
 
 #ADD SHORTCUT BTN
-$lblAddShortcut = New-Label "add_shortcut_1" 0 660 243 20
+$lblAddShortcut = New-Label "add_shortcut_1" 0 700 243 20
 $panel.Controls.Add($lblAddShortcut)
 
-$btnAddShortcut = New-Button "add_shortcut_2" 270 660 100 20 {
+$btnAddShortcut = New-Button "add_shortcut_2" 270 700 100 20 {
     $desktopPath = [System.Environment]::GetFolderPath("Desktop")
     $wshShell = New-Object -ComObject WScript.Shell
 
@@ -612,21 +625,21 @@ $btnAddShortcut = New-Button "add_shortcut_2" 270 660 100 20 {
 $panel.Controls.Add($btnAddShortcut)
 
 # OPEN COPITOR's FOLDER BTN
-$lblOpenFolder = New-Label "open_script_folder_1" 0 690 243 20
+$lblOpenFolder = New-Label "open_script_folder_1" 0 730 243 20
 $panel.Controls.Add($lblOpenFolder)
 
-$btnOpenFolder = New-Button "open_script_folder_2" 270 690 100 20{
+$btnOpenFolder = New-Button "open_script_folder_2" 270 730 100 20{
     $pathToOpen = (Get-Location).Path
     Start-Process explorer.exe -ArgumentList $pathToOpen
 }
 $panel.Controls.Add($btnOpenFolder)
 
 # LANGUAGE SETTINGs
-$lblSelectLanguage = New-Label "select_language" 0 720 243 20
+$lblSelectLanguage = New-Label "select_language" 0 760 243 20
 $panel.Controls.Add($lblSelectLanguage)
 
 $selectLanguage = New-Object System.Windows.Forms.ComboBox
-$selectLanguage.Location = New-Object System.Drawing.Point(270,720)
+$selectLanguage.Location = New-Object System.Drawing.Point(270,760)
 $selectLanguage.Size     = New-Object System.Drawing.Size(100,20)
 $selectLanguage.DropDownStyle = "DropDownList"
 $selectLanguage.Items.AddRange($langFiles)
@@ -650,7 +663,7 @@ $selectLanguage.Add_SelectedIndexChanged({
 
 $panel.Controls.Add($selectLanguage)
 
-$panel.Controls.Add((New-Label "" 0 750 243 20))
+$panel.Controls.Add((New-Label "" 0 790 243 20))
 # Run the form
 $form.ShowDialog()
 

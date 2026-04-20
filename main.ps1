@@ -1,8 +1,10 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+$scriptName = "COPITOR v2.3"
+
 $lang = ""
-$logFile = "log.txt"
+$logFile = Join-Path (Get-Location) "log.txt"
 $configFile = "current.config"
 $defaultConfigFile = "default.config"
 $tempDir = ".\temp"
@@ -15,7 +17,10 @@ $loadDrivesInfoRunning = Join-Path $tempDir "load_drives_info.running"
 $drivesInfo = Join-Path $tempDir "drives.info"
 $iconPath = Join-Path $icoDir "run.ico"
 
+$scriptPath = (Get-Location).Path + "\copy_script.ps1"
+
 $drivesUpdateStatus = "" #check if the drives Panel still updating
+$drives = @()
 
 function LoadConfig {
     $actualId = (Get-WmiObject Win32_ComputerSystemProduct).UUID
@@ -169,17 +174,33 @@ function LoadDrivesInfo {
 }
 
 # Create drive labels
+$oldDrivesInfoContent = @()
+$drivesInfoDiff #flag = true to refresh USB drives list, false will not refresh
+
+function getDrives {
+    #if the $driveLetter is in $drives
+    if ([string]::IsNullOrWhiteSpace($affectedDrive)) {
+        return @()
+    } else {
+        $drives = $affectedDrive -split ','
+        return $drives
+    }
+}
 function Get-USBDriveLabels {
     $labels = @()
 
-    # Get drives
-    if ([string]::IsNullOrWhiteSpace($affectedDrive)) {
-        $drives = @()
-    } else {
-        $drives = $affectedDrive -split ','
-    }
     if (Test-Path $drivesInfo){
         $drivesInfoContent = Get-Content $drivesInfo
+
+        # Initialize old content as array
+        if (($drivesInfoContent -join "`n") -eq $script:oldDrivesInfoContent) {
+            # Log "same"
+            $script:drivesInfoDiff = $false
+        } else {
+            # Log "diff"
+            $script:drivesInfoDiff = $true
+            $script:oldDrivesInfoContent = $drivesInfoContent -join "`n"
+        }
 
         if ($drivesInfoContent.Count -ge 2) {
             $totalDrives = $drivesInfoContent[-2]
@@ -188,52 +209,19 @@ function Get-USBDriveLabels {
         $script:drivesUpdateStatus = $drivesInfoContent | Select-Object -Last 1
         $lines = $drivesInfoContent | Select-Object -SkipLast 2
 
-        $totalLinePanel = New-Object System.Windows.Forms.Panel
-        $totalLinePanel.Size = New-Object System.Drawing.Size(200, 20)
-
-        # Copying counter label:
-        $totalDriveLabel = New-Object System.Windows.Forms.Label
         $totalDriveLabel.Text = "$totalDrives"
-
-        $totalDriveLabel.Size = New-Object System.Drawing.Size(130, 20)
-        $totalDriveLabel.Location = New-Object System.Drawing.Point(0, 0)
-        # $totalDriveLabel.Margin = '6,3,3,6'
-
-        $totalDriveLabel.BackColor = [System.Drawing.Color]::FromName($themeFg)
-        $totalDriveLabel.ForeColor = [System.Drawing.Color]::FromName($themeBg)
         if ($drivesUpdateStatus -eq "2_stopped_updating") {
             $label.BackColor = [System.Drawing.Color]::FromArgb(60, 100, 100, 100) 
         }
-        $totalDriveLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-        $totalLinePanel.Controls.Add($totalDriveLabel)
 
-        $refreshBtn = New-Object System.Windows.Forms.Button
-        $refreshBtn.Text = $translations["btn_refresh"]
-        $refreshBtn.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-        $refreshBtn.Size = New-Object System.Drawing.Size(65, 20)
-        $refreshBtn.Location = New-Object System.Drawing.Point(135, 0)
-        $refreshBtn.Add_Click({
-            Log $translations["btn_refresh"]
-            RefreshUSBPanel
-            CloseLoadDrivesInfo
-            LoadDrivesInfo
-        }) 
-        $refreshBtn.BackColor = [System.Drawing.Color]::FromName($themeBg)
-        $refreshBtn.ForeColor = [System.Drawing.Color]::FromName($themeFg)
-        if ($drivesUpdateStatus -eq "2_stopped_updating") {
-            $totalLinePanel.BackColor = [System.Drawing.Color]::FromArgb(60, 100, 100, 100) 
-        }
-        $refreshBtn.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-        $totalLinePanel.Controls.Add($refreshBtn)
-
-        $labels += $totalLinePanel
+        # $labels += $totalLinePanel
 
         foreach($line in $lines){
             $linePanel = New-Object System.Windows.Forms.Panel
-            $linePanel.Size = New-Object System.Drawing.Size(200, 37)
-
+            $linePanel.Size = New-Object System.Drawing.Size(200, 27)
+            
             $lineArr = $line -split "&"
-            # $letter = $lineArr[0]
+            $letter = $lineArr[0]
             $state = $lineArr[1]
             $driveName = $lineArr[2]
             if ($lineArr.Length -eq 5){
@@ -243,8 +231,29 @@ function Get-USBDriveLabels {
                 $drivePercent = "0"
                 $driveTotalSpace = "0.00 GB"
             }
+            
+            $insertedFile = Join-Path $tempDir "$letter.inserted"
+            $removedFile = Join-Path $tempDir "$letter.removed"
+
+            if (Test-Path $insertedFile) {
+                $linePanel.add_Paint({
+                    param($ssender, $e)
+                    $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::LightGreen, 2)
+                    $e.Graphics.DrawLine($pen, 0, 0, 0, $ssender.Height)
+                    $pen.Dispose()
+                })
+            } elseif (Test-Path $removedFile) {
+                $linePanel.add_Paint({
+                    param($ssender, $e)
+                    $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::Red, 2)
+                    $e.Graphics.DrawLine($pen, 0, 0, 0, $ssender.Height)
+                    $pen.Dispose()
+                })
+                Remove-Item -Path $removedFile -Force -ErrorAction SilentlyContinue
+            }
+
             $lblPercentProgess = New-Object System.Windows.Forms.Label
-            $lblPercentProgess.Size = New-Object System.Drawing.Size([int](2*([math]::Round($drivePercent))), 10)
+            $lblPercentProgess.Size = New-Object System.Drawing.Size([int]([math]::Round(2*($drivePercent))), 7)
 
             # $lblPercentProgess.Anchor = "Top,Left"
             $lblPercentProgess.AutoEllipsis = $true
@@ -312,14 +321,16 @@ function Get-USBDriveLabels {
     return $labels
 }
 
-function ReloadForm {
-    LoadConfig
-    $script:translations = LoadLanguageFile $lang
-    LoadTheme
-    CloseLoadDrivesInfo
-    LoadDrivesInfo
-    ReloadFormLanguage
-}
+# If shortcut not valid, automatically create it to Desktop
+$wshShell = New-Object -ComObject WScript.Shell
+$newShortcut = $wshShell.CreateShortcut((Join-Path ([Environment]::GetFolderPath("Desktop")) "$scriptName.lnk"))
+$newShortcut.TargetPath = (Resolve-Path ".\RUN.cmd").Path
+$newShortcut.WorkingDirectory = (Get-Location).Path
+$newShortcut.WindowStyle = 1
+$newShortcut.Description = "Shortcut to RUN.cmd"
+$newShortcut.IconLocation = (Resolve-Path ".\ico\run.ico").Path
+$newShortcut.Save()
+
 LoadTheme
 CloseLoadDrivesInfo
 LoadDrivesInfo
@@ -331,7 +342,7 @@ LoadDrivesInfo
 # Create main form
 $monitorWidth = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "COPITOR v2.2"
+$form.Text = "COPITOR v2.3"
 $form.ClientSize = New-Object System.Drawing.Size(640, 520)
 $form.StartPosition = "Manual"
 $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
@@ -377,10 +388,44 @@ $btnCheckDrive.FlatStyle = 'Flat'
 $btnCheckDrive.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $form.Controls.Add($btnCheckDrive)
 
+$totalLinePanel = New-Object System.Windows.Forms.Panel
+$totalLinePanel.Location = New-Object System.Drawing.Point(10, 10)
+$totalLinePanel.Size = New-Object System.Drawing.Size(200, 20)
+$form.Controls.Add($totalLinePanel)
+
+# Copying counter label:
+$totalDriveLabel = New-Object System.Windows.Forms.Label
+$totalDriveLabel.Size = New-Object System.Drawing.Size(130, 20)
+$totalDriveLabel.Location = New-Object System.Drawing.Point(0, 0)
+$totalDriveLabel.BackColor = [System.Drawing.Color]::FromName($themeFg)
+$totalDriveLabel.ForeColor = [System.Drawing.Color]::FromName($themeBg)
+$totalDriveLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$totalLinePanel.Controls.Add($totalDriveLabel)
+
+$refreshBtn = New-Object System.Windows.Forms.Button
+$refreshBtn.Text = $translations["btn_refresh"]
+$refreshBtn.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$refreshBtn.Size = New-Object System.Drawing.Size(65, 20)
+$refreshBtn.Location = New-Object System.Drawing.Point(135, 0)
+$refreshBtn.Add_Click({
+    Log $translations["btn_refresh"]
+    UpdateLog
+    RefreshUSBPanel
+    CloseLoadDrivesInfo
+    LoadDrivesInfo
+}) 
+$refreshBtn.BackColor = [System.Drawing.Color]::FromName($themeBg)
+$refreshBtn.ForeColor = [System.Drawing.Color]::FromName($themeFg)
+if ($drivesUpdateStatus -eq "2_stopped_updating") {
+    $totalLinePanel.BackColor = [System.Drawing.Color]::FromArgb(60, 100, 100, 100) 
+}
+$refreshBtn.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$totalLinePanel.Controls.Add($refreshBtn)
+
 # USB panel
 $usbPanel = New-Object System.Windows.Forms.Panel
-$usbPanel.Location = New-Object System.Drawing.Point(10, 10)
-$usbPanel.Size = New-Object System.Drawing.Size(220, 430)
+$usbPanel.Location = New-Object System.Drawing.Point(10, 40)
+$usbPanel.Size = New-Object System.Drawing.Size(230, 400)
 $usbPanel.AutoScroll = $true
 
 $form.Controls.Add($usbPanel)
@@ -392,12 +437,17 @@ $btnSettings.Size = New-Object System.Drawing.Size(200, 40)
 $btnSettings.Location = New-Object System.Drawing.Point(10, 450)
 
 $btnSettings.Add_Click({
+    CloseLoadDrivesInfo
     Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden", "-NoProfile", "-ExecutionPolicy RemoteSigned", "-File `"$PWD\settings.ps1`"" -Wait
-    ReloadForm
-
+    LoadConfig
+    $script:translations = LoadLanguageFile $lang
+    ReloadFormLanguage
+    LoadTheme
     # Float on top
     $mainPid = $PID
     getOnTop($mainPid)
+    UpdateLog
+    LoadDrivesInfo
 })
 $btnSettings.FlatStyle = 'Flat'
 $form.Controls.Add($btnSettings)
@@ -437,39 +487,29 @@ $form.Controls.Add($creditPanel)
 
 # Refresh panel
 function RefreshUSBPanel {
-    $usbPanel.Controls.Clear()
-    $y = 0
     $drives = Get-USBDriveLabels
-    if ($drives.Count -eq 0) {
-        $label = New-Object System.Windows.Forms.Label
-        $label.Text = $translations["lbl_loading_drives"]
-        $label.Location = New-Object System.Drawing.Point(0, $y)
-        $label.Size = New-Object System.Drawing.Size(200, 20)
-        $usbPanel.Controls.Add($label)
-    } else {
-        foreach ($lbl in $drives) {
-            $lbl.Location = New-Object System.Drawing.Point(0, $y)
-            $usbPanel.Controls.Add($lbl)
-            $y += $lbl.Height + 10
+
+    if ($script:drivesInfoDiff -eq $true){
+        $usbPanel.Controls.Clear()
+        $y = 0
+        if ($drives.Count -eq 0) {
+            $label = New-Object System.Windows.Forms.Label
+            $label.Text = $translations["lbl_loading_drives"]
+            $label.Location = New-Object System.Drawing.Point(0, $y)
+            $label.Size = New-Object System.Drawing.Size(200, 20)
+            $usbPanel.Controls.Add($label)
+        } else {
+            foreach ($lbl in $drives) {
+                $lbl.Location = New-Object System.Drawing.Point(0, $y)
+                $usbPanel.Controls.Add($lbl)
+                $y += $lbl.Height + 10
+            }
         }
     }
 }
 
-# Load theme after add all elements
-LoadTheme
-$tick = 3000 #miliseconds
-
-# --- Timer: Refresh Log ---
-$timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = $tick
-$timer.Add_Tick({
-    $form.Invoke(
-        [System.Windows.Forms.MethodInvoker]{ 
-            RefreshUSBPanel 
-        }
-    )
-    # Update log.txt
-    if (Test-Path "log.txt") {
+function UpdateLog {
+    if (Test-Path $logFile) {
         try {
             $logBox.Text = Get-Content "log.txt" -Raw
             $logBox.SelectionStart = $logBox.Text.Length
@@ -481,10 +521,48 @@ $timer.Add_Tick({
     } else {
         $logBox.Text = $translations["msg_log_missing"]
     }
+} 
+
+#initialLoad
+UpdateLog
+LoadTheme
+
+# --- Watcher: Refresh Log ---
+# Create a FileSystemWatcher
+$watcher = New-Object System.IO.FileSystemWatcher
+$watcher.Path = Split-Path $logFile
+$watcher.Filter = (Split-Path $logFile -Leaf)
+$watcher.NotifyFilter = [System.IO.NotifyFilters]'LastWrite, Size, FileName'
+
+# Event handler for file changes
+$onChanged = Register-ObjectEvent $watcher Changed -Action {
+    # Ensure we call the function in the UI thread
+    $form.Invoke([Action]{ UpdateLog })
+}
+
+# Start watching
+$watcher.EnableRaisingEvents = $true
+
+# --- Timer: Refresh USB list ---
+$tick = 2100 #miliseconds
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = $tick
+$timer.Add_Tick({
+    $form.Invoke(
+        [System.Windows.Forms.MethodInvoker]{ 
+            RefreshUSBPanel 
+        }
+    )
 })
 
 $timer.Start()
 $form.Add_FormClosing({ 
+
+    # Cleanup UpdateLog watcher
+    Unregister-Event -SourceIdentifier $onChanged.Name
+    $watcher.Dispose()
+
+    # Cleanup updateUSB drives list timer
     $timer.Stop()
     try {
         Remove-Item $mainRunning -Force -ErrorAction SilentlyContinue
@@ -503,5 +581,54 @@ function ReloadFormLanguage {
 
 }
 
+Register-WmiEvent -Class Win32_VolumeChangeEvent -Action {
+    $evt = $Event.SourceEventArgs.NewEvent
+    if ($null -eq $evt) {
+        Log "WmiEvent: Event received but no details available."
+        return
+    }
+
+    $eventType = $evt.EventType
+    $driveName = $evt.DriveName
+    $driveLabel = $driveName.TrimEnd('\').TrimEnd(':')
+
+    # Log "EventType: $eventType, Drive: $driveName"
+    $insertedFile = Join-Path $tempDir "$driveLabel.inserted"
+    $removedFile = Join-Path $tempDir "$driveLabel.removed"
+
+    switch ($eventType) {
+        # 1 { Log "Configuration changed: $driveName" }
+        2 { 
+            # Log "Drive inserted: $driveName"
+            $msg = $translations["msg_inserted"]
+            Log "$driveLabel $msg"
+            New-Item -Path $insertedFile -ItemType File -Force | Out-Null 
+            Remove-Item -Path $removedFile -Force -ErrorAction SilentlyContinue
+            
+            if ($autoCopyWhenPluggedIn -eq "True") {
+                #do run automatically
+                foreach ($driveLetter in getDrives) {
+                    if ($driveLabel -eq $driveLetter) {
+                        $msg=$translations["msg_start_script"]
+                        Log "$driveLetter`: $msg."
+                        Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$scriptPath`" -letter $driveLetter -sourceFolder `"$sourceFolder`"" -WindowStyle Hidden
+                        # Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$scriptPath`" -letter $driveLetter -sourceFolder `"$sourceFolder`""
+                    }
+                }
+            }
+
+        }
+        3 { 
+            # Log "Drive removed: $driveName" 
+            $msg = $translations["msg_removed"]
+            Log "$driveLabel $msg"
+            New-Item -Path $removedFile -ItemType File -Force | Out-Null 
+            Remove-Item -Path $insertedFile -Force -ErrorAction SilentlyContinue 
+        }
+        # 4 { Log "Docking event" }
+        # 5 { Log "Undocking event" }
+        default { Log "Unknown event type: $eventType" }
+    }
+}
 # Show the form
 $form.ShowDialog()

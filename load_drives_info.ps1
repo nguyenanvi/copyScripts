@@ -2,17 +2,15 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $configPath = "current.config"
-$logPath = "log.txt"
 $tempDir = ".\temp"
 $langDir = ".\lang"
 $logFile = "log.txt"
 $loadDriveInfoRunning = Join-Path $tempDir "load_drives_info.running"
 $completedFile = Join-Path $tempDir "$letter.completed"
 $drivesInfo = Join-Path $tempDir "drives.info"
-$configCheck = $false
 
-$tickRate = 3000 #miliseconds
-$limit = 3 #times = 9s after 0slotcopying shutdown this script.
+$tickRate = 1000 #miliseconds
+$limit = 180 #times = 3m after 0slotcopying shutdown this script.
 
 $count = 0
 
@@ -44,9 +42,9 @@ if (Test-Path $configPath) {
     $checkConfig = $false
 }
 
-function Load-LanguageFile($culture = $null) {
+function LoadLocalization($culture = $null) {
     if (-not $culture) {
-        #$culture = (Get-Culture).Name  #This will make (Load-LanguageFile(null)) fall back to System language
+        #$culture = (Get-Culture).Name  #This will make (LoadLocalization(null)) fall back to System language
         $culture = "en-US"
     }
 
@@ -78,11 +76,10 @@ function Load-LanguageFile($culture = $null) {
     }
 }
 
-$translations = Load-LanguageFile $lang
+$translations = LoadLocalization $lang
 
 # Function to log to GUI and file
 function Log($text) {
-    $translation = Load-LanguageFile $lang
     $timestamp = $(Get-Date)
     if (Test-Path $logFile){
         $line = "$timestamp : $text"
@@ -98,11 +95,7 @@ if ($checkConfig -eq $false) {
     exit
 }
 
-if (Test-Path $loadDriveInfoRunning) {
-    $loadDrivesInfoPid= Get-Content $loadDriveInfoRunning
-    # Log "Already running. PID: $loadDrivesInfoPid"
-    exit
-} else {
+if (-not (Test-Path $loadDriveInfoRunning)) {
     $currentPID = $PID
     Set-Content -Path $loadDriveInfoRunning -Value $currentPID
 }
@@ -246,7 +239,7 @@ Function CloseForm {
 # Timer
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = $tickRate
-$timer.Add_Tick({ 
+$timer.Add_Tick({
     RefreshUsbInfo
 })
 $timer.Start() 

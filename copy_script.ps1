@@ -9,6 +9,7 @@ $configFile = "current.config"
 $logFile = "log.txt"
 $tempDir = ".\temp"
 $copyingFile = Join-Path $tempDir "$letter.copying"
+$insertedFile = Join-Path $tempDir "$letter.inserted"
 $infoFile = Join-Path $tempDir "$letter.info"
 $completedFile = Join-Path $tempDir "$letter.completed"
 $soundError = Join-Path $env:windir "Media\Windows Hardware Fail.wav"
@@ -16,6 +17,10 @@ $soundDone  = Join-Path $env:windir "Media\Windows Print complete.wav"
 
 if (-not (Test-Path $tempDir)) {
     New-Item -ItemType Directory -Path $tempDir | Out-Null
+}
+
+if (Test-Path $copyingFile) {
+    exit
 }
 
 # Function to log to GUI and file
@@ -77,10 +82,8 @@ try {
     $currentPID = $PID
     Set-Content -Path $copyingFile -Value $PID -ErrorAction Stop
     Remove-Item -Path $completedFile -Force
+    Remove-Item -Path $insertedFile -Force -ErrorAction SilentlyContinue
     
-    if (-not (Test-Path $copyingFile)) { 
-        New-Item -Path $copyingFile -ItemType File -Force | Out-Null 
-    }
     function Get-FolderSize($path) {
         if (-not (Test-Path $path)) { return 0 }
         return (Get-ChildItem -Path $path -Recurse -ErrorAction SilentlyContinue | 
@@ -99,7 +102,6 @@ scriptSourceFolder=$sourceFolder
 scriptSourceSize=$sourceSize
 scriptTotalSpace=$totalSpace
 "@
-    Set-Content -Path $copyingFile -Value $currentPID
     Set-Content -Path $infoFile -Value $info
 
     # Try formatting USB if autoFormat=true
@@ -146,7 +148,9 @@ scriptTotalSpace=$totalSpace
     $errStack = $_.Exception.StackTrace 
 
     $player_err.PlaySync() 
-    [System.Windows.Forms.MessageBox]::Show("$letter`: Error copying:`n$errMsg")
+    $msg = "$letter`: Error copying:`n$errMsg"
+    # [System.Windows.Forms.MessageBox]::Show($msg)
+    Log $msg
 } finally {
     Remove-Item -Path $copyingFile -Force -ErrorAction SilentlyContinue
 }
