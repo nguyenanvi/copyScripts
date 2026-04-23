@@ -19,7 +19,7 @@
 Run the following command in **PowerShell**, **Terminal**, or **CMD**:
 
 ```powershell
-irm https://nguyenanvi.github.io/copyScripts/install.ps1 | iex
+irm https://nguyenanvi.github.io/copitor/install.ps1 | iex
 ```
 
 ---
