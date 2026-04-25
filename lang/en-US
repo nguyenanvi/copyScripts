@@ -85,3 +85,5 @@ msg_copying=copying
 msg_done=done
 msg_invalid_source_folder=Invalid Source Folder. Please go to SETTINGS to set new valid folder.
 msg_now_copying=Now copying
+msg_usb_plugged_in=just plugged in
+msg_usb_plugged_out=just plugged out

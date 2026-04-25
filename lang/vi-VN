@@ -85,3 +85,5 @@ msg_copying=đang sao chép
 msg_done=hoàn thành, thay USB khác để tiếp tục
 msg_invalid_source_folder=Thư mục chọn để sao chép không hợp lệ, vui lòng vào CÀI ĐẶT để chọn lại thư mục khác.
 msg_now_copying=Đã chọn
+msg_usb_plugged_in=vừa được cắm vào
+msg_usb_plugged_out=vừa được tháo ra

@@ -155,6 +155,10 @@ function LoadTheme {
         $btnCheckDrive.ForeColor = [System.Drawing.Color]::FromName($themeBg)
         $logBox.BackColor = [System.Drawing.Color]::FromName($themeBg)
         $logBox.ForeColor = [System.Drawing.Color]::FromName($themeFg)
+        $totalDriveLabel.BackColor = [System.Drawing.Color]::FromName($themeFg)
+        $totalDriveLabel.ForeColor = [System.Drawing.Color]::FromName($themeBg)
+        $refreshBtn.BackColor = [System.Drawing.Color]::FromName($themeBg)
+        $refreshBtn.ForeColor = [System.Drawing.Color]::FromName($themeFg)
     }
 }
 
@@ -600,7 +604,7 @@ Register-WmiEvent -Class Win32_VolumeChangeEvent -Action {
         # 1 { Log "Configuration changed: $driveName" }
         2 { 
             # Log "Drive inserted: $driveName"
-            $msg = $translations["msg_inserted"]
+            $msg = $translations["msg_usb_plugged_in"]
             Log "$driveLabel $msg"
             New-Item -Path $insertedFile -ItemType File -Force | Out-Null 
             Remove-Item -Path $removedFile -Force -ErrorAction SilentlyContinue
@@ -620,7 +624,7 @@ Register-WmiEvent -Class Win32_VolumeChangeEvent -Action {
         }
         3 { 
             # Log "Drive removed: $driveName" 
-            $msg = $translations["msg_removed"]
+            $msg = $translations["msg_usb_plugged_out"]
             Log "$driveLabel $msg"
             New-Item -Path $removedFile -ItemType File -Force | Out-Null 
             Remove-Item -Path $insertedFile -Force -ErrorAction SilentlyContinue 
